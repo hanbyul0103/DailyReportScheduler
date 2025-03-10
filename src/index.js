@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder }
 const fs = require('fs');
 const path = require('path');
 const { CronJob } = require('cron');
-const config = require('../config.json');
+const config = require('../testconfig.json');
 
 const client = new Client({
     intents: [
@@ -80,6 +80,10 @@ const sharedCommands = [
             },
         ],
     },
+    {
+        name: 'clear',
+        description: '설정된 공지를 삭제합니다.',
+    }
 ];
 
 const developmentCommands = [
@@ -182,8 +186,8 @@ function scheduleMessages() {
                             if (notReacted.length > 0) {
                                 await channel.send(`🚨 아직 보고서를 작성하지 않은 사람: ${notReacted.map(id => `<@${id}>`).join(', ')}`);
                             }
-                            
-                            if(notReacted.length === 0) {
+
+                            if (notReacted.length === 0) {
                                 await channel.send(`🚨 모든 사람이 보고서를 작성했습니다.`);
                                 clearInterval(interval);
                                 collector.stop();
@@ -253,6 +257,9 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({
             content: `✅ 설정 완료!\n팀: [링크](${team})\n공지 시간: ${time}시\n채널: <#${channel.id}>\n역할: <@&${role.id}>`,
         });
+    }
+    else if (interaction.commandName === 'clear') {
+
     }
     else if (interaction.commandName === 'notification') {
         let data = readData();
