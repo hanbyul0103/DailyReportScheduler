@@ -148,7 +148,7 @@ function scheduleMessages() {
         const { channelId, Link, time, members } = data[serverId];
 
         if (channelId && Link && time) {
-            const job = new CronJob(`0 0 ${time} * * *`, async () => {
+            const job = new CronJob(`0 0 ${time} * * 1-5`, async () => {
                 try {
                     const channel = await client.channels.fetch(channelId);
                     if (channel) {
