@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder, Options } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { CronJob } = require('cron');
@@ -83,6 +83,18 @@ const sharedCommands = [
     {
         name: 'clear',
         description: '설정된 공지를 삭제합니다.',
+    },
+    {
+        name: 'suggestion',
+        description: '관리자에게 의견을 보내보세요!',
+        options: [
+            {
+                name: '메시지',
+                type: 3,
+                description: '내용을 입력하세요',
+                required: true,
+            }
+        ]
     }
 ];
 
@@ -287,6 +299,12 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({
             content: `✅ 공지 완료!`,
         });
+    }
+    else if (interaction.commandName === 'suggestion') {
+        const message = interaction.options.getString('메시지');
+        const user = await client.users.fetch(806172778168189020); // 내 clientID
+
+        await user.send(message);
     }
 });
 
