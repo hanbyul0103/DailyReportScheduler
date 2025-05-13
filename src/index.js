@@ -304,6 +304,7 @@ fs.watch(DATA_FILE, (eventType) => {
 
 client.once('ready', () => {
     console.log(`[!] 봇 로그인 완료: ${client.user.tag}`);
+    client.guilds.cache.forEach(guild => addGuildToData(guild.id));
     scheduleMessages();
 });
 
@@ -385,8 +386,25 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+function addGuildToData(guildId) {
+    const data = readData();
+    if (!data[guildId]) {
+        data[guildId] = {
+            channelId: null,
+            Link: null,
+            time: null,
+            members: [],
+            roleId: null
+        };
+
+        saveData(data);
+    }
+}
+
 client.on('guildCreate', async (guild) => {
     console.log(`[📥] ${guild.name} 서버에 초대됨 (id: ${guild.id})`);
+    addGuildToData(guild.id);
+
     let channel = guild.systemChannel || guild.channels.cache.find(ch => ch.type === 0);
 
     if (channel) {
