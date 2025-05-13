@@ -1,9 +1,8 @@
-const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder, Options, ChannelFlags, InteractionCallback, VoiceChannelEffectSendAnimationType } = require('discord.js');
+const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { CronJob } = require('cron');
-const config = require('../testconfig.json');
-const { channel } = require('diagnostics_channel');
+const config = require('../config.json');
 
 const client = new Client({
     intents: [
