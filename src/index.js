@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder, ChannelType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { CronJob } = require('cron');
@@ -360,8 +360,21 @@ client.on('interactionCreate', async (interaction) => {
         for (const serverId of serverIds) {
             const roleId = data[serverId].roleId;
             const channelId = data[serverId].channelId;
-            const guild = await client.guilds.fetch(channelId);
-            const channel = await client.channels.fetch(channelId === null ? guild.systemChannel : channelId);
+            const guild = await client.guilds.fetch(serverId);
+
+            const channels = await guild.channels.fetch();
+
+            const firstTextChannel = [...channels.values()]
+                .filter(c =>
+                    c.type === ChannelType.GuildText &&
+                    c.viewable &&
+                    c.permissionsFor(guild.members.me).has('SendMessages')
+                )
+                .sort((a, b) => a.rawPosition - b.rawPosition)[0];
+
+            const targetChannelId = channelId || (firstTextChannel ? firstTextChannel.id : null);
+
+            const channel = await client.channels.fetch(targetChannelId);
 
             const embed = new EmbedBuilder()
                 .setColor(0x0099ff)
