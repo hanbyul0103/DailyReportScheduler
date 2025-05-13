@@ -360,7 +360,8 @@ client.on('interactionCreate', async (interaction) => {
         for (const serverId of serverIds) {
             const roleId = data[serverId].roleId;
             const channelId = data[serverId].channelId;
-            const channel = await client.channels.fetch(channelId);
+            const guild = await client.guilds.fetch(channelId);
+            const channel = await client.channels.fetch(channelId === null ? guild.systemChannel : channelId);
 
             const embed = new EmbedBuilder()
                 .setColor(0x0099ff)
@@ -369,7 +370,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setTimestamp(new Date());
 
             await channel.send({
-                content: `<@&${roleId}>`,
+                content: `${roleId === null ? "" : `<@&${roleId}>`}`,
                 embeds: [embed],
             });
         }
