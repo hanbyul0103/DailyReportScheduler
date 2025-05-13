@@ -1,8 +1,9 @@
-const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder, Options } = require('discord.js');
+const { Client, GatewayIntentBits, IntentsBitField, REST, Routes, EmbedBuilder, Options, ChannelFlags, InteractionCallback, VoiceChannelEffectSendAnimationType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { CronJob } = require('cron');
 const config = require('../testconfig.json');
+const { channel } = require('diagnostics_channel');
 
 const client = new Client({
     intents: [
@@ -16,7 +17,8 @@ const client = new Client({
 
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-let scheduledJobs = {};
+let dailyReportJobs = {};
+let weeklyReportJobs = {};
 
 function readData() {
     if (!fs.existsSync(DATA_FILE)) return {};
@@ -146,9 +148,13 @@ const rest = new REST({ version: '10' }).setToken(config.token);
 })();
 
 function clearScheduledJobs() {
-    for (const serverId in scheduledJobs) {
-        scheduledJobs[serverId].stop();
-        delete scheduledJobs[serverId];
+    for (const serverId in dailyReportJobs) {
+        dailyReportJobs[serverId].stop();
+        delete dailyReportJobs[serverId];
+    }
+
+    for (const serverId in weeklyReportJobs) {
+        weeklyReportJobs[serverId].stop();
     }
 }
 
@@ -160,63 +166,135 @@ function scheduleMessages() {
         const { channelId, Link, time, members } = data[serverId];
 
         if (channelId && Link && time) {
-            const job = new CronJob(`0 0 ${time} * * 1-5`, async () => {
-                try {
-                    const channel = await client.channels.fetch(channelId);
-                    if (channel) {
-                        const embed = new EmbedBuilder()
-                            .setColor(0x0099ff)
-                            .setTitle('🚨 일간 보고서 쓰러가기')
-                            .setURL(Link)
-                            .setTimestamp(new Date());
+            const dailyReport = registerDaily(channelId, Link, time, data, members, serverId);
+            const weeklyReport = registerWeekly(channelId, Link, time, data, members, serverId);
 
-                        let message = await channel.send({
-                            content: `<@&${data[serverId].roleId}>`,
-                            embeds: [embed],
-                        });
+            // 일간 보고서 알람
+            dailyReport.start();
+            dailyReportJobs[serverId] = dailyReport;
 
-                        await message.react('✅');
+            // 주간 보고서 알람
+            weeklyReport.start();
+            weeklyReportJobs[serverId] = dailyReport;
 
-                        const filter = (reaction, user) => reaction.emoji.name === '✅' && members.includes(user.id);
-                        const now = new Date();
-                        const midnight = new Date(now);
-                        midnight.setHours(24, 0, 0, 0);
-                        const timeUntilMidnight = midnight - now;
-
-                        const collector = message.createReactionCollector({ filter, time: timeUntilMidnight });
-
-                        const interval = setInterval(async () => {
-                            const now = new Date();
-                            if (now >= midnight) {
-                                clearInterval(interval);
-                                return;
-                            }
-
-                            const reactedUsers = [...collector.collected.values()].flatMap(r => r.users.cache.map(u => u.id));
-                            const notReacted = members.filter(id => !reactedUsers.includes(id));
-
-                            if (notReacted.length > 0) {
-                                await channel.send(`🚨 아직 보고서를 작성하지 않은 사람: ${notReacted.map(id => `<@${id}>`).join(', ')}`);
-                            }
-
-                            if (notReacted.length === 0) {
-                                await channel.send(`🚨 모든 사람이 보고서를 작성했습니다.`);
-                                clearInterval(interval);
-                                collector.stop();
-                            }
-                        }, 30 * 60 * 1000);
-                    }
-                } catch (error) {
-                    console.error(`[!] 메시지 전송 오류:`, error);
-                }
-            });
-
-            job.start();
-            scheduledJobs[serverId] = job;
             console.log(`[✅] ${serverId} 서버의 공지 예약 완료: ${time}시`);
         }
     }
 }
+
+function registerDaily(channelId, Link, time, data, members, serverId) {
+    const dailyReport = new CronJob(`0 0 ${time} * * 1-5`, async () => {
+        try {
+            const channel = await client.channels.fetch(channelId);
+            if (channel) {
+                const embed = new EmbedBuilder()
+                    .setColor(0x0099ff)
+                    .setTitle('🚨 일간 보고서 쓰러가기')
+                    .setURL(Link)
+                    .setTimestamp(new Date());
+
+                let message = await channel.send({
+                    content: `<@&${data[serverId].roleId}>`,
+                    embeds: [embed],
+                });
+
+                await message.react('✅');
+
+                const filter = (reaction, user) => reaction.emoji.name === '✅' && members.includes(user.id);
+                const now = new Date();
+                const midnight = new Date(now);
+                midnight.setHours(24, 0, 0, 0);
+                const timeUntilMidnight = midnight - now;
+
+                const collector = message.createReactionCollector({ filter, time: timeUntilMidnight });
+
+                const interval = setInterval(async () => {
+                    const now = new Date();
+                    if (now >= midnight) {
+                        clearInterval(interval);
+                        return;
+                    }
+
+                    const reactedUsers = [...collector.collected.values()].flatMap(r => r.users.cache.map(u => u.id));
+                    const notReacted = members.filter(id => !reactedUsers.includes(id));
+
+                    if (notReacted.length > 0) {
+                        await channel.send(`${notReacted.map(id => `<@${id}>`).join(', ')}\n🚨 일간 보고서를 아직 작성하지 않았어요!`);
+                    }
+                    else {
+                        await channel.send(`🎉 모든 사람이 보고서를 작성했습니다.`);
+                        clearInterval(interval);
+                        collector.stop();
+                    }
+                }, 30 * 60 * 1000);
+            }
+        } catch (error) {
+            console.error(`[!] 메시지 전송 오류:`, error);
+        }
+    });
+
+    return dailyReport;
+}
+
+function registerWeekly(channelId, Link, time, data, members, serverId) {
+    const weeklyReport = new CronJob(`0 0 ${time} * * 6`, async () => {
+        try {
+            const channel = await client.channels.fetch(channelId);
+            if (channel) {
+                const embed = new EmbedBuilder()
+                    .setColor(0xff9900)
+                    .setTitle('📅 주간 보고서 쓰러가기')
+                    .setURL(Link)
+                    .setTimestamp(new Date());
+
+                const message = await channel.send({
+                    content: `<@&${data[serverId].roleId}>`,
+                    embeds: [embed],
+                });
+
+                await message.react('✅');
+
+                const filter = (reaction, user) =>
+                    reaction.emoji.name === '✅' && members.includes(user.id);
+
+                const now = new Date();
+                const midnight = new Date(now);
+                midnight.setHours(24, 0, 0, 0);
+                const timeUntilMidnight = midnight - now;
+
+                const collector = message.createReactionCollector({ filter, time: timeUntilMidnight });
+
+                const interval = setInterval(async () => {
+                    const now = new Date();
+
+                    if (now >= midnight) {
+                        clearInterval(interval);
+                        return;
+                    }
+
+                    const reactedUsers = [...collector.collected.values()]
+                        .flatMap(r => r.users.cache.map(u => u.id));
+
+                    if (reactedUsers.length > 0) {
+                        await channel.send(`✅ 주간 보고서가 제출되었습니다.`);
+                        clearInterval(interval);
+                        collector.stop();
+                    } else {
+                        await channel.send({
+                            content: `<@&${data[serverId].roleId}>\n🚨 주간 보고서를 아직 작성하지 않았어요!`,
+                            allowedMentions: { parse: ["everyone"] }
+                        });
+                    }
+                }, interval);
+            }
+        } catch (error) {
+            console.error(`[!] 주간 메시지 전송 오류:`, error);
+        }
+    });
+
+    return weeklyReport;
+}
+
 
 fs.watch(DATA_FILE, (eventType) => {
     if (eventType === 'change') {
