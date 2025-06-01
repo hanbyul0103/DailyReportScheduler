@@ -154,6 +154,7 @@ function clearScheduledJobs() {
 
     for (const serverId in weeklyReportJobs) {
         weeklyReportJobs[serverId].stop();
+        delete weeklyReportJobs[serverId];
     }
 }
 
